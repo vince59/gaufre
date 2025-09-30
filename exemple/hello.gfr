@@ -1,0 +1,11 @@
+fn main() {
+  s1="ma chaine 1"
+  s2="ma chaine 2"
+  s3 = s1 + s2
+
+  log("Bonjour de Gaufre!")
+  for i=1 to 30 {
+     log("ligne ",i, s3)
+  }
+}
+
