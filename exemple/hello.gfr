@@ -1,11 +1,9 @@
-fn main() {
-  s1="ma chaine 1"
-  s2="ma chaine 2"
-  s3 = s1 + s2
+import "lib\utils.gfr"
+import "lib\unit.gfr"
 
+fn main() {
   log("Bonjour de Gaufre!")
-  for i=1 to 30 {
-     log("ligne ",i, s3)
-  }
+  call hello_from_unit()
+  call hello_from_utils()
 }
 
