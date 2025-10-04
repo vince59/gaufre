@@ -9,6 +9,12 @@ pub struct Program {
 }
 
 #[derive(Debug, Clone)]
+pub struct Function {
+    pub name: String,
+    pub body: Vec<Stmt>,
+}
+
+#[derive(Debug, Clone)]
 pub enum Stmt {
     Log(Vec<Expr>),
     Call { name: String },
@@ -45,7 +51,7 @@ impl From<LexError> for ParseError {
 impl std::fmt::Display for ParseError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::Lex(e) => write!(f, "{}", e), 
+            Self::Lex(e) => write!(f, "{}", e),
             Self::Unexpected {
                 found,
                 expected,
@@ -73,7 +79,7 @@ pub struct Parser<'a> {
 
 impl<'a> Parser<'a> {
     pub fn new(mut lx: Lexer<'a>) -> Result<Self, ParseError> {
-        let (cur, cur_pos)  = lx.next_token()?;
+        let (cur, cur_pos) = lx.next_token()?;
         Ok(Self { lx, cur, cur_pos })
     }
 
@@ -92,12 +98,13 @@ impl<'a> Parser<'a> {
             Err(ParseError::Unexpected {
                 found: self.cur.clone(),
                 expected: name,
-                pos: self.cur_pos.clone()
+                pos: self.cur_pos.clone(),
             })
         }
     }
 
-    // parse main program and return the name of each import and the content of main function
+    // import "string"
+    // fn main() {}
     pub fn parse_main_program(&mut self) -> Result<(Vec<String>, Program), ParseError> {
         let imports = self.parse_imports()?;
         // fn main() { ... }
@@ -129,7 +136,7 @@ impl<'a> Parser<'a> {
                         return Err(ParseError::Unexpected {
                             found: self.cur.clone(),
                             expected: "a path string after `import`",
-                            pos: self.cur_pos.clone()
+                            pos: self.cur_pos.clone(),
                         });
                     }
                 }
@@ -152,7 +159,7 @@ impl<'a> Parser<'a> {
             return Err(ParseError::Unexpected {
                 found: self.cur.clone(),
                 expected: "a string \"...\" after log(",
-                pos: self.cur_pos.clone()
+                pos: self.cur_pos.clone(),
             });
         };
         self.expect(Token::RParen, grammar::RPAREN)?;
@@ -168,7 +175,7 @@ impl<'a> Parser<'a> {
                 return Err(ParseError::Unexpected {
                     found: self.cur.clone(),
                     expected: "no `import` in an included file (only in main program)",
-                    pos: self.cur_pos.clone()
+                    pos: self.cur_pos.clone(),
                 });
             }
             stmts.push(self.parse_stmt()?);
@@ -177,6 +184,7 @@ impl<'a> Parser<'a> {
         Ok(stmts)
     }
 
+    // call <ident>()
     fn parse_call(&mut self) -> Result<Stmt, ParseError> {
         self.expect(Token::Call, crate::grammar::KW_CALL)?;
         // nom de fonction
@@ -188,12 +196,48 @@ impl<'a> Parser<'a> {
             return Err(ParseError::Unexpected {
                 found: self.cur.clone(),
                 expected: "function name after `call`",
-                pos: self.cur_pos.clone()
+                pos: self.cur_pos.clone(),
             });
         };
         self.expect(Token::LParen, crate::grammar::LPAREN)?;
         self.expect(Token::RParen, crate::grammar::RPAREN)?;
         Ok(Stmt::Call { name })
+    }
+
+    // Parse `(){ ... }` and return the vector stadment
+    fn parse_fn_body_block(&mut self) -> Result<Vec<Stmt>, ParseError> {
+        self.expect(Token::LParen, crate::grammar::LPAREN)?;
+        self.expect(Token::RParen, crate::grammar::RPAREN)?;
+        self.expect(Token::LBrace, crate::grammar::LBRACE)?;
+        let mut body = Vec::new();
+        while !matches!(self.cur, Token::RBrace) {
+            body.push(self.parse_stmt()?);
+        }
+        self.expect(Token::RBrace, crate::grammar::RBRACE)?;
+        Ok(body)
+    }
+
+    fn parse_function(&mut self) -> Result<Function, ParseError> {
+        let name = if let Token::Ident(s) = &self.cur {
+            let n = s.clone();
+            self.bump()?;
+            n
+        } else if matches!(self.cur, Token::Main) {
+            return Err(ParseError::Unexpected {
+                found: self.cur.clone(),
+                expected: "function (hors `main`)",
+                pos: self.cur_pos.clone(),
+            });
+        } else {
+            return Err(ParseError::Unexpected {
+                found: self.cur.clone(),
+                expected: "nom de fonction",
+                pos: self.cur_pos.clone(),
+            });
+        };
+
+        let body = self.parse_fn_body_block()?;
+        Ok(Function { name, body })
     }
 
     // parse a stadment
@@ -204,7 +248,7 @@ impl<'a> Parser<'a> {
             _ => Err(ParseError::Unexpected {
                 found: self.cur.clone(),
                 expected: "`log`",
-                pos: self.cur_pos.clone()
+                pos: self.cur_pos.clone(),
             }),
         }
     }
